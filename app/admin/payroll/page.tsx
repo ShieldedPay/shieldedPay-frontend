@@ -28,6 +28,7 @@ import { FieldGroup, Field, FieldLabel } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
 import type { Payroll, DisbursementWithEmployee } from "@/lib/types"
+import { CsvBatchUpload, type ParsedCsvEmployee } from "@/components/admin/csv-batch-upload"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -153,6 +154,31 @@ export default function PayrollPage() {
     ? disbursements.filter((d) => d.payroll_id === selectedPayroll.id)
     : []
 
+  const handleBatchImport = async (importedEmployees: ParsedCsvEmployee[]) => {
+    try {
+      for (const emp of importedEmployees) {
+        await fetch("/api/employees", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: emp.name,
+            salary_usd: emp.salaryUsd,
+            currency: emp.currency,
+            country: "Global",
+            stellar_address: emp.stellarAddress,
+          }),
+        })
+      }
+      mutate("/api/employees")
+      mutate("/api/payrolls")
+      mutate("/api/disbursements")
+      mutate("/api/dashboard/stats")
+      toast.success(`Batch imported ${importedEmployees.length} contractors into payroll database`)
+    } catch {
+      toast.error("Failed to sync imported contractors")
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -163,13 +189,15 @@ export default function PayrollPage() {
             Create and manage payroll runs for your contractors.
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Payroll
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-3">
+          <CsvBatchUpload onImportSuccess={handleBatchImport} />
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Payroll
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Create New Payroll</DialogTitle>
@@ -219,6 +247,7 @@ export default function PayrollPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Payrolls Table */}
